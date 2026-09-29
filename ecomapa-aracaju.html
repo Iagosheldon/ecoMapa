@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EcoMapa Aracaju</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<style>
+:root{--ink:#14222b;--mut:#5b6b75;--bg:#f3f6f7;--card:#fff;--line:#d9e1e5;--g:#1b7a4b;--gd:#125a37;--w:#b45309}
+@media (prefers-color-scheme:dark){:root{--ink:#e8eef1;--mut:#9fb0ba;--bg:#0f1a20;--card:#17262e;--line:#2a3d47;--g:#4cc38a;--gd:#7fdcae;--w:#f0a95b}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg);display:flex;flex-direction:column}
+header{padding:12px 16px;background:var(--g);color:#fff}
+header h1{margin:0;font-size:18px}
+header p{margin:2px 0 0;font-size:13px;opacity:.9}
+.tabs{display:flex;gap:4px;padding:8px 12px 0;background:var(--card);border-bottom:1px solid var(--line)}
+.tabs button{border:0;background:none;color:var(--mut);padding:8px 12px;font:inherit;font-weight:600;border-bottom:3px solid transparent;cursor:pointer}
+.tabs button[aria-selected=true]{color:var(--gd);border-color:var(--g)}
+main{flex:1;min-height:0;display:grid;grid-template-columns:380px 1fr}
+#side{overflow:auto;padding:12px;border-right:1px solid var(--line)}
+#map{min-height:280px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:6px 12px;font:inherit;cursor:pointer}
+.chip[aria-pressed=true]{background:var(--g);border-color:var(--g);color:#fff}
+.loc{width:100%;padding:9px;border:1px dashed var(--g);background:none;color:var(--gd);border-radius:8px;font:inherit;font-weight:600;cursor:pointer;margin-bottom:10px}
+.status{font-size:13px;color:var(--mut);margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:10px;cursor:pointer}
+.card.sel{border-color:var(--g);box-shadow:0 0 0 2px var(--g)}
+.card h3{margin:0;font-size:15px;display:flex;justify-content:space-between;gap:8px}
+.dist{color:var(--gd);font-weight:700;white-space:nowrap}
+.card p{margin:4px 0;font-size:13px;color:var(--mut)}
+.tags span{display:inline-block;font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:1px 6px;margin:2px 4px 2px 0}
+.warn{color:var(--w)!important}
+.card a,.card .rt{display:inline-block;margin-top:6px;color:#fff;background:var(--g);padding:6px 12px;border:1px solid var(--g);border-radius:6px;text-decoration:none;font:inherit;font-weight:600;font-size:13px;cursor:pointer}
+.card a.alt{background:none;color:var(--gd);margin-left:6px}
+.rinfo{font-weight:600;color:var(--gd)!important}
+.lbl{font-size:12px;color:var(--mut);margin:0 0 4px}
+.info{padding:16px;max-width:720px;margin:0 auto;overflow:auto}
+.info h2{font-size:17px;margin:18px 0 6px}
+.info li{margin-bottom:4px}
+.info small{color:var(--mut)}
+[hidden]{display:none!important}
+@media(max-width:760px){main{grid-template-columns:1fr;grid-template-rows:260px 1fr}#map{order:-1}#side{border-right:0}}
+</style>
+</head>
+<body>
+<header>
+  <h1>EcoMapa Aracaju</h1>
+  <p>Onde descartar entulho, móveis, recicláveis e eletrônicos perto de você</p>
+</header>
+<nav class="tabs" role="tablist">
+  <button role="tab" aria-selected="true" data-tab="mapa">Onde descartar</button>
+  <button role="tab" aria-selected="false" data-tab="guia">Como separar</button>
+  <button role="tab" aria-selected="false" data-tab="servicos">Coleta em casa</button>
+</nav>
+
+<main id="tab-mapa">
+  <section id="side">
+    <div class="chips" id="chips"></div>
+    <p class="lbl">Como você vai?</p>
+    <div class="chips" id="modes"></div>
+    <button class="loc" id="locBtn">Usar minha localização</button>
+    <p class="status" id="status">Escolha o tipo de resíduo.</p>
+    <div id="list"></div>
+  </section>
+  <div id="map" aria-label="Mapa dos ecopontos"></div>
+</main>
+
+<section class="info" id="tab-guia" hidden>
+  <h2>Entulho (restos de obra)</h2>
+  <ul><li>Aceito nos ecopontos em pequenos volumes: até 1 m³ por descarga.</li><li>Separe do lixo comum e de orgânicos, que não são aceitos.</li><li>Para volumes maiores, contrate caçamba de empresa licenciada.</li></ul>
+  <h2>Móveis, podas e volumosos</h2>
+  <ul><li>Leve ao ecoponto ou peça o Cata-Treco (coleta gratuita, na porta).</li><li>Podas, gesso e pó de serra também são aceitos como volumosos.</li></ul>
+  <h2>Recicláveis</h2>
+  <ul><li>Papel, papelão, plástico, metal e vidro, limpos e secos.</li><li>Vão para as cooperativas parceiras da Prefeitura.</li></ul>
+  <h2>Eletrônicos, pilhas e lâmpadas</h2>
+  <ul><li>Celulares, computadores, eletrodomésticos e similares.</li><li>Pilhas e lâmpadas devem estar bem acondicionadas.</li></ul>
+  <h2>Roupas e calçados</h2>
+  <ul><li>Ecoponto do Bairro Industrial e coletores da Humana Brasil pela cidade.</li></ul>
+  <p><small>Conteúdo baseado em divulgações da Prefeitura de Aracaju e da Emsurb. Confirme regras atuais com a Emsurb.</small></p>
+</section>
+
+<section class="info" id="tab-servicos" hidden>
+  <h2>Cata-Treco</h2>
+  <p>Coleta gratuita de móveis, eletrônicos, podas, papelão e objetos sem uso. Deixe o material na porta ou agende.</p>
+  <ul><li>Telefone: <b>(79) 3021-9908</b></li><li>WhatsApp: <b>(79) 3021-9999</b></li><li>E-mail: ouvidoria.emsurb@aracaju.se.gov.br</li></ul>
+  <h2>Coleta seletiva porta a porta</h2>
+  <p>Feita por cooperativas (Care, Coores e União) em bairros atendidos. Para incluir seu endereço, fale com a Ouvidoria da Emsurb.</p>
+  <ul><li>Telefone: <b>(79) 3021-9908</b></li></ul>
+  <h2>Descarte irregular</h2>
+  <p>Viu entulho ou lixo jogado na rua? Registre pela Ouvidoria da Emsurb.</p>
+  <p><small>Números e horários vieram de páginas da Prefeitura de Aracaju; confirme antes de divulgar o app.</small></p>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+/* ---------- DADOS ----------
+   Endereços e materiais: Emsurb / Prefeitura de Aracaju / Câmara Municipal (nov/2025 a 2026).
+   ATENÇÃO: lat/lng são APROXIMADAS (centro do bairro). Antes de apresentar o TCC,
+   geocodifique os endereços (ex.: Nominatim/OSM) e confira no local. */
+const TIPOS = {
+  entulho:"Entulho", volumosos:"Móveis e podas", reciclaveis:"Recicláveis",
+  eletronicos:"Eletrônicos, pilhas e lâmpadas", roupas:"Roupas e calçados"
+};
+const PONTOS = [
+ {n:"Ecoponto 17 de Março", end:"Rua Vereador Manoel Nunes Resende, s/nº", lat:-10.9035, lng:-37.0885, t:["entulho","reciclaveis","volumosos"]},
+ {n:"Ecoponto Coroa do Meio", end:"Rua Jornalista João B. de Santanna, 2618", lat:-10.9385, lng:-37.0520, t:["entulho","reciclaveis","volumosos"]},
+ {n:"Ecoponto Inácio Barbosa", end:"Rua Júpiter, s/nº", lat:-10.9640, lng:-37.0540, t:["entulho"]},
+ {n:"Ecoponto Ponto Novo", end:"Rua Massaranduba, s/nº", lat:-10.9160, lng:-37.0690, t:["volumosos","entulho"]},
+ {n:"Ecoponto Jabotiana", end:"Rua Projetada, s/nº", lat:-10.9450, lng:-37.0770, t:["entulho","reciclaveis","volumosos"]},
+ {n:"Ecoponto 18 do Forte", end:"Rua Jansen Melo, s/nº", lat:-10.9250, lng:-37.0560, t:["entulho","volumosos","reciclaveis","eletronicos"]},
+ {n:"Ecoponto Industrial", end:"Avenida Confiança, 131", lat:-10.9110, lng:-37.0790, t:["roupas","reciclaveis","eletronicos"]},
+ {n:"Ecoponto Jardim Centenário", end:"Rua Radialista José da Silva Lima, 331", lat:-10.9330, lng:-37.0880, t:["volumosos","reciclaveis","eletronicos"]},
+ {n:"Ecoponto Santos Dumont", end:"Rua Jane Bonfim, s/nº", lat:-10.9260, lng:-37.0960, t:["entulho","volumosos","reciclaveis","eletronicos"], aviso:"Materiais aceitos a confirmar com a Emsurb."}
+];
+const HORARIO = "Seg a sáb, 7h–12h e 13h–17h · até 1 m³ por descarga";
+
+/* ---------- ESTADO ---------- */
+let tipo = "entulho", user = null, sel = null, modo = "car", rotaLayer = null, ultima = null;
+const PERFIS = {car:["routed-car","Carro"], bike:["routed-bike","Bicicleta"], foot:["routed-foot","A pé"]};
+const CENTRO = [-10.9250, -37.0700];
+const map = L.map("map").setView(CENTRO, 12);
+/* Provedores de mapa sem chave de API.
+   - Esri: funciona também com o arquivo aberto direto (file://).
+   - OSM: só funciona com o app hospedado (https ou localhost); bloqueia (403) file://.
+   Para produção, considere um provedor com chave gratuita (MapTiler, Stadia, etc.). */
+const esri = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Tiles © Esri"});
+const osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap contributors"});
+esri.addTo(map);
+L.control.layers({"Mapa Esri":esri,"OpenStreetMap (só hospedado)":osm}).addTo(map);
+const layer = L.layerGroup().addTo(map);
+let userMarker = null;
+
+/* ---------- FUNÇÕES ---------- */
+function km(a,b){ // distância em linha reta (Haversine)
+  const R=6371, r=x=>x*Math.PI/180;
+  const dLa=r(b[0]-a[0]), dLo=r(b[1]-a[1]);
+  const h=Math.sin(dLa/2)**2+Math.cos(r(a[0]))*Math.cos(r(b[0]))*Math.sin(dLo/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+
+function render(){
+  const ref = user || CENTRO;
+  const lista = PONTOS.filter(p=>p.t.includes(tipo))
+    .map(p=>({...p,d:km(ref,[p.lat,p.lng])}))
+    .sort((a,b)=>a.d-b.d).slice(0,5);
+  document.getElementById("status").textContent = lista.length
+    ? (user ? "Pontos mais próximos de você para " : "Pontos para ")+TIPOS[tipo].toLowerCase()+(user?"":" (ative a localização para ordenar por distância)")
+    : "Nenhum ecoponto aceita este material. Veja a aba Coleta em casa.";
+  layer.clearLayers();
+  if(rotaLayer){rotaLayer.remove();rotaLayer=null;} ultima=null;
+  const box = document.getElementById("list"); box.innerHTML = "";
+  lista.forEach((p,i)=>{
+    const m = L.marker([p.lat,p.lng]).addTo(layer).bindPopup("<b>"+esc(p.n)+"</b><br>"+esc(p.end));
+    m.on("click",()=>destacar(i));
+    p.m = m;
+    const dest = p.lat+","+p.lng;
+    const el = document.createElement("div");
+    el.className="card"; el.dataset.i=i;
+    el.innerHTML =
+      "<h3><span>"+esc(p.n)+"</span>"+(user?"<span class='dist'>"+p.d.toFixed(1).replace(".",",")+" km</span>":"")+"</h3>"+
+      "<p>"+esc(p.end)+"</p><p>"+HORARIO+"</p>"+
+      "<div class='tags'>"+p.t.map(t=>"<span>"+TIPOS[t]+"</span>").join("")+"</div>"+
+      (p.aviso?"<p class='warn'>"+esc(p.aviso)+"</p>":"")+
+      "<button class='rt'>Traçar rota</button><a class='alt' target='_blank' rel='noopener' href='https://www.google.com/maps/dir/?api=1&destination="+dest+"'>Google Maps</a><p class='rinfo'></p>";
+    el.addEventListener("click",()=>destacar(i));
+    el.querySelector(".rt").addEventListener("click",e=>{e.stopPropagation();rota(i);});
+    el.querySelector(".alt").addEventListener("click",e=>e.stopPropagation());
+    box.appendChild(el);
+    p.el = el;
+  });
+  render.lista = lista;
+  const pts = lista.map(p=>[p.lat,p.lng]); if(user) pts.push(user);
+  if(pts.length) map.fitBounds(pts,{padding:[40,40],maxZoom:14});
+}
+function destacar(i){
+  render.lista.forEach((p,j)=>p.el.classList.toggle("sel",i===j));
+  const p = render.lista[i]; p.m.openPopup(); map.panTo([p.lat,p.lng]);
+}
+
+/* chips */
+const chips = document.getElementById("chips");
+Object.entries(TIPOS).forEach(([k,v])=>{
+  const b=document.createElement("button");
+  b.className="chip"; b.textContent=v; b.setAttribute("aria-pressed",k===tipo);
+  b.onclick=()=>{tipo=k;[...chips.children].forEach(c=>c.setAttribute("aria-pressed",c===b));render();};
+  chips.appendChild(b);
+});
+
+/* geolocalização */
+function pedirLocal(ok,falha){
+  if(!navigator.geolocation){falha();return;}
+  navigator.geolocation.getCurrentPosition(pos=>{
+    user=[pos.coords.latitude,pos.coords.longitude];
+    if(userMarker) userMarker.remove();
+    userMarker=L.circleMarker(user,{radius:8,color:"#fff",weight:2,fillColor:"#2563eb",fillOpacity:1}).addTo(map).bindPopup("Você está aqui");
+    ok();
+  },falha,{enableHighAccuracy:true,timeout:10000});
+}
+document.getElementById("locBtn").onclick=()=>{
+  const st=document.getElementById("status");
+  st.textContent="Buscando sua localização...";
+  pedirLocal(render,()=>{render();st.textContent="Não foi possível obter a localização. Mostrando a partir do centro de Aracaju.";});
+};
+
+/* modos de deslocamento */
+const modes=document.getElementById("modes");
+Object.entries(PERFIS).forEach(([k,v])=>{
+  const b=document.createElement("button");
+  b.className="chip"; b.textContent=v[1]; b.setAttribute("aria-pressed",k===modo);
+  b.onclick=()=>{modo=k;[...modes.children].forEach(c=>c.setAttribute("aria-pressed",c===b));if(ultima!==null)rota(ultima);};
+  modes.appendChild(b);
+});
+
+/* rota dentro do mapa (OSRM público em routing.openstreetmap.de, sem chave; uso leve/demonstração) */
+function rota(i){
+  const p=render.lista[i], info=p.el.querySelector(".rinfo");
+  destacar(i); ultima=i;
+  render.lista.forEach(x=>x.el.querySelector(".rinfo").textContent="");
+  const calcular=async()=>{
+    info.textContent="Calculando rota...";
+    const url="https://routing.openstreetmap.de/"+PERFIS[modo][0]+"/route/v1/driving/"+user[1]+","+user[0]+";"+p.lng+","+p.lat+"?overview=full&geometries=geojson";
+    try{
+      const d=await (await fetch(url)).json();
+      if(d.code!=="Ok") throw new Error(d.code);
+      const r=d.routes[0];
+      if(rotaLayer) rotaLayer.remove();
+      rotaLayer=L.geoJSON(r.geometry,{style:{color:"#2563eb",weight:5,opacity:.85}}).addTo(map);
+      map.fitBounds(rotaLayer.getBounds(),{padding:[40,40]});
+      info.textContent=PERFIS[modo][1]+": "+(r.distance/1000).toFixed(1).replace(".",",")+" km, cerca de "+Math.max(1,Math.round(r.duration/60))+" min";
+    }catch(e){
+      info.textContent="Não foi possível calcular a rota agora. Tente de novo ou use o botão Google Maps.";
+    }
+  };
+  if(user){calcular();return;}
+  info.textContent="Buscando sua localização...";
+  pedirLocal(()=>{render();const j=render.lista.findIndex(x=>x.n===p.n);if(j>=0)rota(j);else calcular();},
+    ()=>{info.textContent="Ative a localização do navegador para traçar a rota.";});
+}
+
+/* abas */
+document.querySelectorAll(".tabs button").forEach(b=>b.onclick=()=>{
+  document.querySelectorAll(".tabs button").forEach(x=>x.setAttribute("aria-selected",x===b));
+  ["mapa","guia","servicos"].forEach(t=>document.getElementById("tab-"+t).hidden = t!==b.dataset.tab);
+  if(b.dataset.tab==="mapa") setTimeout(()=>map.invalidateSize(),50);
+});
+
+render();
+</script>
+</body>
+</html>
